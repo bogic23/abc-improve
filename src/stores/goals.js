@@ -1,16 +1,25 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
+import { useAuthStore } from './auth'
+import { deleteItem, saveItem } from '../lib/userData'
+import { reportSyncError } from '../lib/syncStatus'
 
 export const useGoalsStore = defineStore('goals', () => {
-  const goals = ref([
-    { id: 1, title: 'Read 24 books this year', category: 'Learning', target: 24, current: 7, deadline: '2026-12-31', status: 'active' },
-    { id: 2, title: 'Run a half marathon', category: 'Health', target: 1, current: 0, deadline: '2026-09-01', status: 'active' },
-  ])
+  const auth = useAuthStore()
+  const goals = ref([])
 
   const activeGoals = computed(() => goals.value.filter(g => g.status === 'active'))
 
+  function persist(goal) {
+    saveItem(auth.user?.uid, 'goals', goal).catch((err) => {
+      reportSyncError('Could not save your goals to Firebase.', err)
+    })
+  }
+
   function addGoal(goal) {
-    goals.value.push({ ...goal, id: Date.now(), current: 0, status: 'active' })
+    const item = { ...goal, id: Date.now(), current: 0, status: 'active' }
+    goals.value.push(item)
+    persist(item)
   }
 
   function updateProgress(id, amount) {
@@ -19,11 +28,23 @@ export const useGoalsStore = defineStore('goals', () => {
 
     goal.current = Math.max(0, Math.min(goal.current + amount, goal.target))
     if (goal.current >= goal.target) goal.status = 'completed'
+    persist(goal)
   }
 
   function removeGoal(id) {
     goals.value = goals.value.filter(goal => goal.id !== id)
+    deleteItem(auth.user?.uid, 'goals', id).catch((err) => {
+      reportSyncError('Could not delete that goal from Firebase.', err)
+    })
   }
 
-  return { goals, activeGoals, addGoal, updateProgress, removeGoal }
+  function hydrate(items) {
+    goals.value = Array.isArray(items) ? items : []
+  }
+
+  function reset() {
+    goals.value = []
+  }
+
+  return { goals, activeGoals, addGoal, updateProgress, removeGoal, hydrate, reset }
 }, { persist: true })

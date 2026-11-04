@@ -1,11 +1,14 @@
 <script setup>
 import { computed, onMounted } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useSettingsStore } from '../../stores/settings'
+import { useAuthStore } from '../../stores/auth'
 import AppIcon from '../ui/AppIcon.vue'
 
 const route = useRoute()
+const router = useRouter()
 const settingsStore = useSettingsStore()
+const authStore = useAuthStore()
 
 const titles = {
   dashboard: 'Dashboard',
@@ -41,6 +44,14 @@ const initials = computed(() => {
 })
 
 onMounted(settingsStore.applyTheme)
+
+async function handleLogout() {
+  try {
+    await authStore.logout()
+  } finally {
+    router.replace({ name: 'login' })
+  }
+}
 </script>
 
 <template>
@@ -72,7 +83,20 @@ onMounted(settingsStore.applyTheme)
         </Transition>
       </button>
 
-      <div class="hidden items-center gap-2.5 rounded-xl border border-slate-200 bg-white py-1.5 pl-1.5 pr-3 dark:border-slate-700 dark:bg-slate-900 sm:flex">
+      <button
+        type="button"
+        class="grid h-10 w-10 place-items-center rounded-xl border border-slate-200 bg-white text-slate-500 transition-all duration-200 hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600 focus:outline-none focus-visible:ring-4 focus-visible:ring-rose-500/20 active:scale-90 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400 dark:hover:border-rose-500/40 dark:hover:bg-rose-500/10 dark:hover:text-rose-300"
+        aria-label="Sign out"
+        :title="`Sign out${authStore.user?.email ? ` of ${authStore.user.email}` : ''}`"
+        @click="handleLogout"
+      >
+        <AppIcon name="logout" class="h-5 w-5" />
+      </button>
+
+      <div
+        class="hidden items-center gap-2.5 rounded-xl border border-slate-200 bg-white py-1.5 pl-1.5 pr-3 dark:border-slate-700 dark:bg-slate-900 sm:flex"
+        :title="authStore.user?.email"
+      >
         <span class="grid h-7 w-7 place-items-center rounded-lg bg-gradient-to-br from-indigo-500 to-violet-600 text-xs font-bold text-white">
           {{ initials }}
         </span>

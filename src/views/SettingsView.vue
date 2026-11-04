@@ -1,9 +1,11 @@
 <script setup>
 import { computed } from 'vue'
 import { useSettingsStore } from '../stores/settings'
+import { useAuthStore } from '../stores/auth'
 import AppIcon from '../components/ui/AppIcon.vue'
 
 const store = useSettingsStore()
+const auth = useAuthStore()
 
 const initials = computed(() => {
   const name = (store.displayName || 'User').trim()
@@ -24,9 +26,14 @@ const isDark = computed(() => store.theme === 'dark')
         <span class="grid h-12 w-12 place-items-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 text-lg font-bold text-white shadow-lg shadow-indigo-500/30">
           {{ initials }}
         </span>
-        <div>
-          <h2 class="font-semibold text-slate-900 dark:text-white">Your profile</h2>
-          <p class="text-sm text-slate-500 dark:text-slate-400">Personalize how the app addresses you.</p>
+        <div class="min-w-0">
+          <div class="flex flex-wrap items-center gap-2">
+            <h2 class="font-semibold text-slate-900 dark:text-white">Your profile</h2>
+            <span class="badge bg-indigo-50 capitalize text-indigo-600 dark:bg-indigo-500/10 dark:text-indigo-300">
+              {{ auth.role }}
+            </span>
+          </div>
+          <p class="truncate text-sm text-slate-500 dark:text-slate-400">{{ auth.user?.email }}</p>
         </div>
       </div>
 
@@ -39,6 +46,7 @@ const isDark = computed(() => store.theme === 'dark')
         class="input"
       >
       <p class="mt-2 text-xs text-slate-400 dark:text-slate-500">Your name appears in the welcome message.</p>
+      <p v-if="auth.profileError" class="mt-2 text-xs text-rose-500 dark:text-rose-400">{{ auth.profileError }}</p>
     </div>
 
     <div class="card animate-fade-up p-5 [animation-delay:80ms]">
@@ -77,12 +85,12 @@ const isDark = computed(() => store.theme === 'dark')
     <div class="card animate-fade-up p-5 [animation-delay:160ms]">
       <div class="flex items-start gap-3">
         <span class="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-300">
-          <AppIcon name="sparkles" class="h-5 w-5" />
+          <AppIcon name="shield" class="h-5 w-5" />
         </span>
         <div>
-          <h2 class="font-medium text-slate-900 dark:text-white">Everything stays on this device</h2>
+          <h2 class="font-medium text-slate-900 dark:text-white">Account & privacy</h2>
           <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">
-            Your goals, habits, and notes are saved locally in your browser. No account needed.
+            Your account profile and all your goals, habits, tasks, journal entries, and learning resources are synced to Firebase Firestore. Changes save automatically.
           </p>
         </div>
       </div>
