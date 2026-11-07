@@ -6,7 +6,7 @@ let firestorePromise = null
 
 export function loadFirestore() {
   if (!firestorePromise) {
-    firestorePromise = import('firebase/firestore').catch((err) => {
+    firestorePromise = import('firebase/firestore/lite').catch((err) => {
       firestorePromise = null
       throw err
     })

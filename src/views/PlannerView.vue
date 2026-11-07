@@ -27,25 +27,47 @@ function dateLabel(value) {
   if (value === store.todayKey) return 'Today'
   return value
 }
+
+function isOverdue(task) {
+  return !task.done && task.date < store.todayKey
+}
+
+function formatTime(iso) {
+  if (!iso) return ''
+  return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+}
 </script>
 
 <template>
   <section class="mx-auto max-w-4xl">
-    <form class="card mb-6 grid gap-3 p-4 sm:grid-cols-[1fr_auto_auto_auto]" @submit.prevent="submit">
+    <div
+      v-if="store.overdueTasks.length"
+      class="mb-5 flex items-start gap-3 rounded-xl border border-rose-200/70 bg-rose-50/70 p-3 text-xs text-rose-700 sm:p-4 sm:text-sm dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-200"
+    >
+      <AppIcon name="alert" class="mt-0.5 h-5 w-5 shrink-0" />
+      <p>
+        You still have
+        <strong class="font-semibold">{{ store.overdueTasks.length }}</strong>
+        {{ store.overdueTasks.length === 1 ? 'task' : 'tasks' }}
+        from before today that {{ store.overdueTasks.length === 1 ? 'is' : 'are' }} not finished yet.
+      </p>
+    </div>
+
+    <form class="card mb-6 grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_auto_auto_auto]" @submit.prevent="submit">
       <input
         v-model="newTask"
         required
         maxlength="120"
         placeholder="What needs to get done?"
-        class="input min-w-0"
+        class="input min-w-0 sm:col-span-2 lg:col-span-1"
       >
-      <input v-model="taskDate" type="date" required class="input" aria-label="Task date">
-      <select v-model="priority" class="input" aria-label="Task priority">
+      <input v-model="taskDate" type="date" required class="input min-w-0" aria-label="Task date">
+      <select v-model="priority" class="input min-w-0" aria-label="Task priority">
         <option value="low">Low priority</option>
         <option value="medium">Medium priority</option>
         <option value="high">High priority</option>
       </select>
-      <button class="btn-primary" type="submit">
+      <button class="btn-primary sm:col-span-2 lg:col-span-1" type="submit">
         <AppIcon name="plus" class="h-4 w-4" />
         Add task
       </button>
@@ -55,29 +77,45 @@ function dateLabel(value) {
       <li
         v-for="task in sortedTasks"
         :key="task.id"
-        class="group flex items-center gap-3 p-4 transition-colors duration-200 hover:bg-slate-50/70 dark:hover:bg-slate-800/40"
+        class="group grid grid-cols-[auto_minmax(0,1fr)_auto_auto] items-start gap-x-3 gap-y-1 p-4 transition-colors duration-200 hover:bg-slate-50/70 dark:hover:bg-slate-800/40"
+        :class="{ 'bg-rose-50/40 dark:bg-rose-500/5': isOverdue(task) }"
       >
         <input
           :checked="task.done"
           type="checkbox"
-          class="h-5 w-5 shrink-0 cursor-pointer rounded border-slate-300 accent-indigo-600 transition dark:border-slate-600"
+          class="row-start-1 mt-0.5 h-5 w-5 shrink-0 cursor-pointer rounded border-slate-300 accent-indigo-600 transition dark:border-slate-600"
           :aria-label="`Mark ${task.text} ${task.done ? 'incomplete' : 'complete'}`"
           @change="store.toggleTask(task.id)"
         >
         <span
-          class="min-w-0 flex-1 truncate text-slate-800 transition-all duration-200 dark:text-slate-100"
+          class="col-start-2 min-w-0 break-words whitespace-normal text-slate-800 transition-all duration-200 dark:text-slate-100"
           :class="{ 'text-slate-400 line-through dark:text-slate-500': task.done }"
         >
           {{ task.text }}
         </span>
-        <span class="hidden items-center gap-1 text-xs text-slate-400 dark:text-slate-500 sm:inline-flex">
-          <AppIcon name="calendar" class="h-3.5 w-3.5" />
-          {{ dateLabel(task.date) }}
-        </span>
-        <span class="badge capitalize" :class="priorityClass(task.priority)">{{ task.priority }}</span>
+        <div class="col-start-2 row-start-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+          <span
+            class="inline-flex items-center gap-1"
+            :class="isOverdue(task)
+              ? 'font-medium text-rose-600 dark:text-rose-300'
+              : 'text-slate-400 dark:text-slate-500'"
+          >
+            <AppIcon name="calendar" class="h-3.5 w-3.5" />
+            <template v-if="isOverdue(task)">Late · {{ task.date }}</template>
+            <template v-else>{{ dateLabel(task.date) }}</template>
+          </span>
+          <span
+            v-if="task.done && task.completedAt"
+            class="inline-flex items-center gap-1 font-medium text-emerald-600 dark:text-emerald-300"
+          >
+            <AppIcon name="clock" class="h-3.5 w-3.5" />
+            Done at {{ formatTime(task.completedAt) }}
+          </span>
+        </div>
+        <span class="badge row-span-2 self-center capitalize" :class="priorityClass(task.priority)">{{ task.priority }}</span>
         <button
           type="button"
-          class="icon-btn shrink-0"
+          class="icon-btn row-span-2 shrink-0 self-center"
           :aria-label="`Remove ${task.text}`"
           @click="store.removeTask(task.id)"
         >

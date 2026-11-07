@@ -23,6 +23,7 @@ export const useHabitsStore = defineStore('habits', () => {
       name: trimmedName,
       frequency: 'daily',
       completions: [],
+      completionTimes: {},
     }
 
     habits.value.push(habit)
@@ -40,14 +41,25 @@ export const useHabitsStore = defineStore('habits', () => {
     const habit = habits.value.find(h => h.id === habitId)
     if (!habit) return
     const idx = habit.completions.indexOf(dateKey)
-    if (idx >= 0) habit.completions.splice(idx, 1)
-    else habit.completions.push(dateKey)
+    if (idx >= 0) {
+      habit.completions.splice(idx, 1)
+      if (habit.completionTimes) delete habit.completionTimes[dateKey]
+    } else {
+      habit.completions.push(dateKey)
+      if (!habit.completionTimes) habit.completionTimes = {}
+      habit.completionTimes[dateKey] = new Date().toISOString()
+    }
     persist(habit)
   }
 
   function isCompleted(habitId, dateKey) {
     const habit = habits.value.find(h => h.id === habitId)
     return habit?.completions.includes(dateKey) ?? false
+  }
+
+  function completionTime(habitId, dateKey) {
+    const habit = habits.value.find(h => h.id === habitId)
+    return habit?.completionTimes?.[dateKey] ?? null
   }
 
   function streak(habitId) {
@@ -66,12 +78,20 @@ export const useHabitsStore = defineStore('habits', () => {
   }
 
   function hydrate(items) {
-    habits.value = Array.isArray(items) ? items : []
+    habits.value = Array.isArray(items)
+      ? items.map(item => ({
+          ...item,
+          completions: Array.isArray(item.completions) ? item.completions : [],
+          completionTimes: item.completionTimes && typeof item.completionTimes === 'object'
+            ? item.completionTimes
+            : {},
+        }))
+      : []
   }
 
   function reset() {
     habits.value = []
   }
 
-  return { habits, addHabit, removeHabit, toggleCompletion, isCompleted, streak, hydrate, reset }
+  return { habits, addHabit, removeHabit, toggleCompletion, isCompleted, completionTime, streak, hydrate, reset }
 }, { persist: true })

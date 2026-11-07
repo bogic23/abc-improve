@@ -11,6 +11,7 @@ export const usePlannerStore = defineStore('planner', () => {
 
   const todayKey = computed(() => localDateKey())
   const todayTasks = computed(() => tasks.value.filter(t => t.date === todayKey.value))
+  const overdueTasks = computed(() => tasks.value.filter(t => !t.done && t.date < todayKey.value))
 
   function persist(task) {
     saveItem(auth.user?.uid, 'tasks', task).catch((err) => {
@@ -27,6 +28,7 @@ export const usePlannerStore = defineStore('planner', () => {
       text: trimmedText,
       date,
       done: false,
+      completedAt: null,
       priority,
     }
 
@@ -38,6 +40,7 @@ export const usePlannerStore = defineStore('planner', () => {
     const task = tasks.value.find(t => t.id === id)
     if (!task) return
     task.done = !task.done
+    task.completedAt = task.done ? new Date().toISOString() : null
     persist(task)
   }
 
@@ -49,12 +52,18 @@ export const usePlannerStore = defineStore('planner', () => {
   }
 
   function hydrate(items) {
-    tasks.value = Array.isArray(items) ? items : []
+    tasks.value = Array.isArray(items)
+      ? items.map(item => ({
+          ...item,
+          done: Boolean(item.done),
+          completedAt: item.completedAt ?? null,
+        }))
+      : []
   }
 
   function reset() {
     tasks.value = []
   }
 
-  return { tasks, todayKey, todayTasks, addTask, toggleTask, removeTask, hydrate, reset }
+  return { tasks, todayKey, todayTasks, overdueTasks, addTask, toggleTask, removeTask, hydrate, reset }
 }, { persist: true })
