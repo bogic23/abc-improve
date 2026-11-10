@@ -21,11 +21,13 @@ export const useDataStore = defineStore('data', () => {
   const learningStore = useLearningStore()
 
   const collections = [
-    { name: 'goals', key: 'goals', store: goalsStore },
-    { name: 'habits', key: 'habits', store: habitsStore },
-    { name: 'tasks', key: 'tasks', store: plannerStore },
-    { name: 'journal', key: 'entries', store: journalStore },
-    { name: 'learning', key: 'resources', store: learningStore },
+    { name: 'goals', store: goalsStore, items: () => goalsStore.goals, hydrate: (items) => goalsStore.hydrate(items) },
+    { name: 'habits', store: habitsStore, items: () => habitsStore.habits, hydrate: (items) => habitsStore.hydrate(items) },
+    { name: 'habitSets', store: habitsStore, items: () => habitsStore.sets, hydrate: (items) => habitsStore.hydrateSets(items) },
+    { name: 'habitSelections', store: habitsStore, items: () => habitsStore.selections, hydrate: (items) => habitsStore.hydrateSelections(items) },
+    { name: 'tasks', store: plannerStore, items: () => plannerStore.tasks, hydrate: (items) => plannerStore.hydrate(items) },
+    { name: 'journal', store: journalStore, items: () => journalStore.entries, hydrate: (items) => journalStore.hydrate(items) },
+    { name: 'learning', store: learningStore, items: () => learningStore.resources, hydrate: (items) => learningStore.hydrate(items) },
   ]
 
   let loadedUid = null
@@ -71,9 +73,8 @@ export const useDataStore = defineStore('data', () => {
   }
 
   function resetStores() {
-    for (const collection of collections) {
-      collection.store.reset()
-    }
+    const stores = new Set(collections.map(collection => collection.store))
+    stores.forEach(store => store.reset())
   }
 
   async function load(uid) {
@@ -112,10 +113,10 @@ export const useDataStore = defineStore('data', () => {
 
       for (const collection of collections) {
         const remoteItems = remote[collection.name] ?? []
-        const localItems = collection.store[collection.key] ?? []
+        const localItems = collection.items() ?? []
         const { items, localOnly } = mergeItems(remoteItems, localItems)
 
-        collection.store.hydrate(items)
+        collection.hydrate(items)
 
         if (localOnly.length) {
           const results = await Promise.allSettled(
@@ -128,6 +129,8 @@ export const useDataStore = defineStore('data', () => {
           }
         }
       }
+
+      habitsStore.migrateLegacyHabits(uid)
 
       loadedUid = uid
       setDataOwner(uid)

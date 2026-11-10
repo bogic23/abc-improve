@@ -37,14 +37,16 @@ const rangeOptions = [
   { value: 'month', label: 'Monthly' },
 ]
 
+const todayHabits = computed(() => habitsStore.todayHabits)
+
 const habitsDone = computed(
-  () => habitsStore.habits.filter((habit) => habitsStore.isCompleted(habit.id, today)).length,
+  () => todayHabits.value.filter((habit) => habitsStore.isCompleted(habit.id, today)).length,
 )
 const tasksDone = computed(() => plannerStore.todayTasks.filter((task) => task.done).length)
 
 const habitPercent = computed(() => {
-  if (!habitsStore.habits.length) return 0
-  return Math.round((habitsDone.value / habitsStore.habits.length) * 100)
+  if (!todayHabits.value.length) return 0
+  return Math.round((habitsDone.value / todayHabits.value.length) * 100)
 })
 
 const periodDays = computed(() => (range.value === 'week' ? 7 : 30))
@@ -187,7 +189,7 @@ function goalPercent(goal) {
             <p class="text-sm font-medium text-slate-500 dark:text-slate-400">Habits Today</p>
             <p class="mt-2 text-3xl font-bold tracking-tight text-slate-900 dark:text-white">
               <CountUp :value="habitsDone" />
-              <span class="text-lg font-semibold text-slate-400 dark:text-slate-500">/ {{ habitsStore.habits.length }}</span>
+              <span class="text-lg font-semibold text-slate-400 dark:text-slate-500">/ {{ todayHabits.length }}</span>
             </p>
           </div>
           <span class="grid h-11 w-11 place-items-center rounded-xl bg-emerald-50 text-emerald-600 transition-transform duration-300 group-hover:-rotate-6 group-hover:scale-110 dark:bg-emerald-500/10 dark:text-emerald-300">
@@ -229,13 +231,13 @@ function goalPercent(goal) {
             <p class="text-xs text-slate-400 dark:text-slate-500">Check off what you have completed</p>
           </div>
           <span class="badge bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300">
-            {{ habitsDone }} / {{ habitsStore.habits.length }}
+            {{ habitsDone }} / {{ todayHabits.length }}
           </span>
         </div>
 
-        <div v-if="habitsStore.habits.length" class="stagger space-y-1">
+        <div v-if="todayHabits.length" class="stagger space-y-1">
           <div
-            v-for="habit in habitsStore.habits"
+            v-for="habit in todayHabits"
             :key="habit.id"
             class="group flex items-center justify-between gap-3 rounded-xl px-2 py-2.5 transition-colors duration-200 hover:bg-slate-50 dark:hover:bg-slate-800/60"
           >
@@ -254,7 +256,7 @@ function goalPercent(goal) {
           </div>
         </div>
         <p v-else class="rounded-xl border border-dashed border-slate-300 p-6 text-center text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
-          No habits yet. Add one from the Habits page.
+          No habits scheduled for today. Pick a routine on the Habits page.
         </p>
       </section>
 

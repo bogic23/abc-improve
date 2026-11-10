@@ -1,6 +1,6 @@
 import { app } from './firebase'
 
-export const USER_COLLECTIONS = ['goals', 'habits', 'tasks', 'journal', 'learning']
+export const USER_COLLECTIONS = ['goals', 'habits', 'habitSets', 'habitSelections', 'tasks', 'journal', 'learning']
 
 let firestorePromise = null
 
@@ -44,14 +44,18 @@ export async function loadUserData(uid) {
   const api = await getApi()
   if (!api) return null
 
-  const entries = await Promise.all(
+  const results = await Promise.allSettled(
     USER_COLLECTIONS.map(async (name) => {
       const snapshot = await api.getDocs(api.collection(api.db, 'users', uid, name))
       return [name, snapshot.docs.map(normalizeItem)]
     }),
   )
 
-  return Object.fromEntries(entries)
+  return Object.fromEntries(
+    results
+      .filter((result) => result.status === 'fulfilled')
+      .map((result) => result.value),
+  )
 }
 
 export async function saveItem(uid, name, item) {
