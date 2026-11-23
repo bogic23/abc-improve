@@ -1,0 +1,167 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // -----------------------------------------------------------------
+    // Helpers
+    // -----------------------------------------------------------------
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isSelf(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    function validProjectData() {
+      return request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 120
+        && request.resource.data.description is string
+        && request.resource.data.description.size() <= 2000
+        && request.resource.data.color is string
+        && request.resource.data.color.matches('^#[0-9A-Fa-f]{6}$')
+        && request.resource.data.status in ['active', 'completed']
+        && request.resource.data.archived is bool;
+    }
+
+    function validTaskData() {
+      return request.resource.data.title is string
+        && request.resource.data.title.size() > 0
+        && request.resource.data.title.size() <= 160
+        && request.resource.data.description is string
+        && request.resource.data.description.size() <= 2000
+        && request.resource.data.projectId is string
+        && request.resource.data.status in ['todo', 'in-progress', 'done']
+        && request.resource.data.priority in ['low', 'medium', 'high']
+        && request.resource.data.dueDate is string
+        && request.resource.data.dueDate.size() <= 10;
+    }
+
+    // -----------------------------------------------------------------
+    // User profiles + roles
+    // -----------------------------------------------------------------
+    match /users/{userId} {
+      allow get: if isSelf(userId) || isAdmin();
+      allow list: if isAdmin();
+
+      // Anyone may create ONLY their own profile, and only as a member.
+      allow create: if isSelf(userId)
+        && request.resource.data.keys().hasOnly([
+          'email',
+          'displayName',
+          'photoURL',
+          'role',
+          'createdAt'
+        ])
+        && request.resource.data.role == 'member'
+        && request.resource.data.email == request.auth.token.email
+        && request.resource.data.displayName is string
+        && request.resource.data.displayName.size() <= 80
+        && request.resource.data.photoURL is string
+        && request.resource.data.createdAt == request.time;
+
+      // Users may edit their own profile fields but never their role.
+      // Admins may change other users' roles (never their own).
+      allow update: if (
+          isSelf(userId)
+          && request.resource.data.role == resource.data.role
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'displayName',
+            'photoURL',
+            'lastLoginAt'
+          ])
+          && request.resource.data.displayName is string
+          && request.resource.data.displayName.size() <= 80
+          && request.resource.data.photoURL is string
+        )
+        || (
+          isAdmin()
+          && request.auth.uid != userId
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['role'])
+          && request.resource.data.role in ['admin', 'member']
+        );
+
+      allow delete: if isAdmin() && request.auth.uid != userId;
+    }
+
+    // -----------------------------------------------------------------
+    // Projects (private to the owning user)
+    // -----------------------------------------------------------------
+    match /users/{userId}/projects/{projectId} {
+      allow read: if isSelf(userId);
+
+      allow create: if isSelf(userId)
+        && request.resource.data.keys().hasOnly([
+          'name',
+          'description',
+          'color',
+          'status',
+          'archived',
+          'createdAt'
+        ])
+        && request.resource.data.createdAt is string
+        && validProjectData();
+
+      allow update: if isSelf(userId)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'name',
+          'description',
+          'color',
+          'status',
+          'archived'
+        ])
+        && validProjectData();
+
+      allow delete: if isSelf(userId);
+    }
+
+    // -----------------------------------------------------------------
+    // Tasks (private to the owning user, must belong to their project)
+    // -----------------------------------------------------------------
+    match /users/{userId}/tasks/{taskId} {
+      allow read: if isSelf(userId);
+
+      allow create: if isSelf(userId)
+        && request.resource.data.keys().hasOnly([
+          'projectId',
+          'title',
+          'description',
+          'status',
+          'priority',
+          'dueDate',
+          'createdAt'
+        ])
+        && request.resource.data.createdAt is string
+        && validTaskData()
+        && exists(
+          /databases/$(database)/documents/users/$(userId)/projects/$(request.resource.data.projectId)
+        );
+
+      allow update: if isSelf(userId)
+        && request.resource.data.projectId == resource.data.projectId
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'title',
+          'description',
+          'status',
+          'priority',
+          'dueDate'
+        ])
+        && validTaskData();
+
+      allow delete: if isSelf(userId);
+    }
+
+    // Deny anything not explicitly allowed above.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
