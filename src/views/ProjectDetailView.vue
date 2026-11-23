@@ -7,7 +7,9 @@ import {
   createTaskCalendarEvent,
   deleteTaskCalendarEvent,
   hasValidGoogleCalendarConnection,
+  preloadCalendar,
   selectedGoogleCalendarId,
+  updateTaskCalendarEvent,
 } from '@/services/googleCalendar'
 import {
   Plus,
@@ -28,6 +30,8 @@ import {
   RotateCcw,
   Check,
   GripVertical,
+  CalendarDays,
+  Pencil,
 } from 'lucide-vue-next'
 
 const route = useRoute()
@@ -47,24 +51,22 @@ const tasksByColumn = computed(() => {
 })
 
 const isTaskModalOpen = ref(false)
-const newTask = ref({ title: '', dueDate: '', priority: 'medium' })
+const newTask = ref({ title: '', priority: 'medium' })
 const draggingTaskId = ref(null)
 const dragOverColumn = ref(null)
 const progressDrafts = reactive({})
 const taskSyncNotice = ref('')
 const isAddingTask = ref(false)
+const dueDateEditorId = ref(null)
+const dueDateDraft = ref('')
+const isSyncingDueDate = ref(false)
 
 async function handleAddTask() {
   if (!newTask.value.title.trim() || isAddingTask.value) return
   taskSyncNotice.value = ''
-  const task = { ...newTask.value, projectId }
   isAddingTask.value = true
   try {
-    if (task.dueDate) {
-      if (!hasValidGoogleCalendarConnection()) await connectGoogleCalendar()
-    }
-
-    const taskId = await store.addTask(task)
+    const taskId = await store.addTask({ ...newTask.value, projectId })
     if (!taskId) {
       taskSyncNotice.value = store.error
         ? `Task was not saved: ${store.error}`
@@ -72,27 +74,84 @@ async function handleAddTask() {
       return
     }
 
-    if (task.dueDate) {
-      try {
-        const event = await createTaskCalendarEvent({ ...task, id: taskId })
-        const linked = await store.updateTask(taskId, {
-          googleCalendarEventId: event.id,
-          googleCalendarId: selectedGoogleCalendarId(),
-        })
-        if (!linked) {
-          taskSyncNotice.value = 'Task and Google Calendar event were created, but their link could not be saved. Use Sync tasks in the Calendar section to repair it.'
-        }
-      } catch (error) {
-        taskSyncNotice.value = `Task saved, but Google Calendar sync failed: ${error.message}. Use Sync tasks in the Calendar section to retry.`
-      }
-    }
-
     isTaskModalOpen.value = false
-    newTask.value = { title: '', dueDate: '', priority: 'medium' }
+    newTask.value = { title: '', priority: 'medium' }
   } catch (error) {
     taskSyncNotice.value = `Task was not saved: ${error.message}`
   } finally {
     isAddingTask.value = false
+  }
+}
+
+function startDueDateEdit(task) {
+  taskSyncNotice.value = ''
+  dueDateEditorId.value = task.id
+  dueDateDraft.value = task.dueDate || ''
+  preloadCalendar()
+}
+
+function cancelDueDateEdit() {
+  dueDateEditorId.value = null
+  dueDateDraft.value = ''
+}
+
+async function saveDueDate(task) {
+  const date = dueDateDraft.value
+  if (!date) {
+    taskSyncNotice.value = 'Pick a due date before saving.'
+    return
+  }
+  if (isSyncingDueDate.value) return
+
+  isSyncingDueDate.value = true
+  taskSyncNotice.value = ''
+
+  let calendarReady = hasValidGoogleCalendarConnection()
+  if (!calendarReady) {
+    try {
+      await connectGoogleCalendar()
+      calendarReady = true
+    } catch {
+      calendarReady = false
+    }
+  }
+
+  const saved = await store.updateTask(task.id, { dueDate: date })
+  if (!saved) {
+    taskSyncNotice.value = `Due date was not saved: ${store.error}`
+    isSyncingDueDate.value = false
+    return
+  }
+
+  dueDateEditorId.value = null
+  dueDateDraft.value = ''
+
+  if (!calendarReady) {
+    taskSyncNotice.value =
+      'Due date saved. Connect Google Calendar when prompted to sync it to your calendar.'
+    isSyncingDueDate.value = false
+    return
+  }
+
+  try {
+    const updatedTask = { ...task, dueDate: date }
+    const event = task.googleCalendarEventId
+      ? await updateTaskCalendarEvent(updatedTask, date)
+      : await createTaskCalendarEvent(updatedTask)
+
+    if (!event?.id) throw new Error('Google Calendar did not return an event.')
+
+    const linked = await store.updateTask(task.id, {
+      googleCalendarEventId: event.id,
+      googleCalendarId: event.calendarId || selectedGoogleCalendarId(),
+    })
+    taskSyncNotice.value = linked
+      ? 'Due date saved and synced to Google Calendar.'
+      : 'Due date saved, but its Google Calendar link could not be stored. Use Sync tasks in Calendar to repair it.'
+  } catch (error) {
+    taskSyncNotice.value = `Due date saved, but Google Calendar sync failed: ${error.message}.`
+  } finally {
+    isSyncingDueDate.value = false
   }
 }
 
@@ -112,7 +171,7 @@ async function handleDeleteTask(task) {
 }
 
 function openTaskModal() {
-  newTask.value = { title: '', dueDate: '', priority: 'medium' }
+  newTask.value = { title: '', priority: 'medium' }
   isTaskModalOpen.value = true
 }
 
@@ -130,6 +189,12 @@ function onProgressInput(task, event) {
 }
 
 async function commitProgress(task, event) {
+  if (!task.dueDate) {
+    delete progressDrafts[task.id]
+    taskSyncNotice.value = 'Set a due date before changing progress on this task.'
+    startDueDateEdit(task)
+    return
+  }
   const value = Number(event.target.value)
   progressDrafts[task.id] = value
   if (value >= 100) {
@@ -150,6 +215,11 @@ watch(projectTasks, (list) => {
 
 async function moveTaskTo(task, status) {
   if (task.status === status) return
+  if (status !== 'todo' && !task.dueDate) {
+    taskSyncNotice.value = 'Set a due date before starting or completing this task.'
+    startDueDateEdit(task)
+    return
+  }
   const current = task.progress ?? 0
 
   if (status === 'todo') {
@@ -192,7 +262,7 @@ const columns = [
   {
     id: 'todo',
     label: 'To Do',
-    hint: 'Drag a task to start working on it',
+    hint: 'Add a task, then set a due date to start it',
     icon: ListTodo,
     iconWrap: 'bg-slate-100 text-slate-500',
     count: 'bg-slate-100 text-slate-600',
@@ -228,7 +298,8 @@ const priorityOptions = [
 ]
 
 function isOverdue(task) {
-  return task.dueDate && new Date(task.dueDate) < new Date() && task.status !== 'done'
+  const today = new Date().toLocaleDateString('en-CA')
+  return task.dueDate && task.dueDate < today && task.status !== 'done'
 }
 </script>
 
@@ -321,9 +392,10 @@ function isOverdue(task) {
     >
       <GripVertical class="mt-0.5 h-4 w-4 flex-shrink-0" />
       <span>
-        Drag tasks from <strong>To Do</strong> into <strong>In Progress</strong>, then adjust the
-        percentage. Reaching <strong>100%</strong> moves the task to <strong>Done</strong>
-        automatically.
+        New tasks start in <strong>To Do</strong> without a due date. Set one on the card to unlock
+        starting or dragging it to <strong>In Progress</strong>. Due dates sync an all-day event to
+        <strong>Google Calendar</strong>, and reaching <strong>100%</strong> moves the task to
+        <strong>Done</strong>.
       </span>
     </div>
 
@@ -395,19 +467,76 @@ function isOverdue(task) {
                       ></span>
                       {{ priorityMeta[task.priority]?.label || 'Medium' }}
                     </span>
-                    <span
+                    <button
                       v-if="task.dueDate"
-                      class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium"
+                      type="button"
+                      @click="startDueDateEdit(task)"
+                      class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium transition hover:ring-2 hover:ring-brand/20"
                       :class="
                         isOverdue(task) ? 'bg-red-50 text-red-600' : 'bg-gray-50 text-gray-500'
                       "
+                      title="Edit due date"
                     >
                       <Clock class="h-3 w-3" />
                       {{ task.dueDate }}
-                    </span>
+                      <Pencil class="h-2.5 w-2.5 opacity-60" />
+                    </button>
+                    <button
+                      v-else
+                      type="button"
+                      @click="startDueDateEdit(task)"
+                      class="inline-flex items-center gap-1 rounded-full border border-dashed border-amber-300 bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-700 transition hover:bg-amber-100"
+                      title="A due date is required before starting this task"
+                    >
+                      <CalendarDays class="h-3 w-3" />
+                      Set due date
+                    </button>
                   </div>
                 </div>
 
+              </div>
+
+              <!-- Due date editor -->
+              <div
+                v-if="dueDateEditorId === task.id"
+                class="mx-3.5 mb-2 rounded-lg border border-brand/20 bg-brand-soft/50 p-2.5"
+              >
+                <label
+                  class="text-[10px] font-semibold uppercase tracking-wide text-brand"
+                  :for="`due-date-${task.id}`"
+                >
+                  Due date
+                </label>
+                <div class="mt-1.5 flex items-center gap-1.5">
+                  <input
+                    :id="`due-date-${task.id}`"
+                    v-model="dueDateDraft"
+                    type="date"
+                    :disabled="isSyncingDueDate"
+                    class="min-w-0 flex-1 rounded-lg border border-brand/20 bg-white px-2 py-1.5 text-xs text-gray-700 outline-none focus:border-brand/50"
+                  />
+                  <button
+                    type="button"
+                    @click="saveDueDate(task)"
+                    :disabled="!dueDateDraft || isSyncingDueDate"
+                    class="inline-flex items-center gap-1 rounded-lg bg-brand px-2 py-1.5 text-[11px] font-semibold text-white transition hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <Loader2 v-if="isSyncingDueDate" class="h-3 w-3 animate-spin" />
+                    <Check v-else class="h-3 w-3" />
+                    {{ isSyncingDueDate ? 'Saving…' : 'Save' }}
+                  </button>
+                  <button
+                    type="button"
+                    @click="cancelDueDateEdit"
+                    :disabled="isSyncingDueDate"
+                    class="rounded-lg px-1.5 py-1 text-[11px] font-medium text-gray-500 transition hover:bg-white disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                </div>
+                <p class="mt-1 text-[10px] font-medium text-brand/70">
+                  Saved to Firestore and synced to Google Calendar when connected.
+                </p>
               </div>
 
               <!-- Progress control (In Progress only) -->
@@ -428,11 +557,16 @@ function isOverdue(task) {
                     class="progress-slider mt-2 w-full"
                     aria-label="Task progress"
                     :style="sliderStyle(task)"
+                    :disabled="!task.dueDate"
                     @input="onProgressInput(task, $event)"
                     @change="commitProgress(task, $event)"
                   />
                   <p class="mt-1.5 text-[10px] font-medium text-sky-600/70">
-                    Reaches 100% → moves to Done
+                    {{
+                      task.dueDate
+                        ? 'Reaches 100% → moves to Done'
+                        : 'Set a due date to enable progress'
+                    }}
                   </p>
                 </div>
               </div>
@@ -455,16 +589,18 @@ function isOverdue(task) {
                   <button
                     v-if="task.status === 'todo'"
                     @click="moveTaskTo(task, 'in-progress')"
-                    class="inline-flex items-center gap-1 rounded-md bg-sky-50 px-2 py-1 text-[11px] font-semibold text-sky-600 transition hover:bg-sky-100 active:scale-95"
-                    title="Start working on this task"
+                    class="inline-flex items-center gap-1 rounded-md bg-sky-50 px-2 py-1 text-[11px] font-semibold text-sky-600 transition hover:bg-sky-100 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-sky-50"
+                    :disabled="!task.dueDate"
+                    :title="task.dueDate ? 'Start working on this task' : 'Set a due date first'"
                   >
                     <Play class="h-3 w-3" /> Start
                   </button>
                   <button
                     v-else-if="task.status === 'in-progress'"
                     @click="moveTaskTo(task, 'done')"
-                    class="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-1 text-[11px] font-semibold text-emerald-600 transition hover:bg-emerald-100 active:scale-95"
-                    title="Mark as done"
+                    class="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-1 text-[11px] font-semibold text-emerald-600 transition hover:bg-emerald-100 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-emerald-50"
+                    :disabled="!task.dueDate"
+                    :title="task.dueDate ? 'Mark as done' : 'Set a due date first'"
                   >
                     <Check class="h-3 w-3" /> Complete
                   </button>
@@ -520,7 +656,9 @@ function isOverdue(task) {
           <div class="flex items-start justify-between">
             <div>
               <h3 class="text-lg font-bold text-gray-900">Add Task</h3>
-              <p class="mt-0.5 text-sm text-gray-500">New tasks start in the To Do column.</p>
+              <p class="mt-0.5 text-sm text-gray-500">
+                New tasks start in To Do. Set a due date on the card when you're ready to begin.
+              </p>
             </div>
             <button
               @click="isTaskModalOpen = false"
@@ -541,18 +679,6 @@ function isOverdue(task) {
                 v-model="newTask.title"
                 placeholder="e.g. Design the landing page"
                 class="w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm outline-none transition-all focus:border-brand/40 focus:ring-4 focus:ring-brand/10"
-              />
-            </div>
-            <div>
-              <label
-                class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500"
-              >
-                Due Date
-              </label>
-              <input
-                v-model="newTask.dueDate"
-                type="date"
-                class="w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm text-gray-700 outline-none transition-all focus:border-brand/40 focus:ring-4 focus:ring-brand/10"
               />
             </div>
             <div>
@@ -595,7 +721,7 @@ function isOverdue(task) {
             >
               <Loader2 v-if="isAddingTask" class="h-4 w-4 animate-spin" />
               <Plus v-else class="h-4 w-4" />
-              {{ isAddingTask ? 'Syncing…' : 'Add Task' }}
+              {{ isAddingTask ? 'Saving…' : 'Add Task' }}
             </button>
           </div>
         </div>

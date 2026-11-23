@@ -43,6 +43,8 @@ service cloud.firestore {
         && request.resource.data.priority in ['low', 'medium', 'high']
         && request.resource.data.dueDate is string
         && request.resource.data.dueDate.size() <= 10
+        && (request.resource.data.dueDate == ''
+          || request.resource.data.dueDate.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$'))
         && request.resource.data.progress is int
         && request.resource.data.progress >= 0
         && request.resource.data.progress <= 100
@@ -53,10 +55,15 @@ service cloud.firestore {
           || (request.resource.data.googleCalendarId is string
             && request.resource.data.googleCalendarId.size() <= 256))
         // Business rule: To Do = 0%, In Progress = 1-99%, Done = 100%.
+        // A task must have a due date before it can leave To Do.
         && (
           (request.resource.data.status == 'todo' && request.resource.data.progress == 0)
-          || (request.resource.data.status == 'in-progress' && request.resource.data.progress < 100)
-          || (request.resource.data.status == 'done' && request.resource.data.progress == 100)
+          || (request.resource.data.status == 'in-progress'
+            && request.resource.data.dueDate != ''
+            && request.resource.data.progress < 100)
+          || (request.resource.data.status == 'done'
+            && request.resource.data.dueDate != ''
+            && request.resource.data.progress == 100)
         );
     }
 

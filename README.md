@@ -71,8 +71,30 @@ New accounts are always created as `member`. To bootstrap your first administrat
 - Users can create only their own profile, always as `member`, and can never change their own role.
 - Only admins can list all users or change another user's role (and never their own).
 - Task writes must reference a project the user owns, and all document fields are validated.
+- Tasks cannot leave `todo` without a valid `YYYY-MM-DD` due date.
 - Task progress is enforced at the database level: `todo` = 0%, `in-progress` = 1–99%, `done` = 100%.
   A task reaching 100% must be `done`, which guarantees the automatic-move behaviour.
+
+## Google Calendar setup
+
+Tasks are created in **To Do** without a due date. Setting or editing the due date on a task card
+creates/updates an all-day event in Google Calendar, and deleting a task removes its event.
+
+1. In the [Google Cloud Console](https://console.cloud.google.com), create or select a project.
+2. Enable the **Google Calendar API** for that project.
+3. Under **APIs & Services → Credentials**, create an **OAuth client ID** of type **Web application**
+   and add your app origins (for example `http://localhost:5173`) to **Authorized JavaScript origins**.
+4. Create an **API key** and restrict it to the Google Calendar API. Restricting by HTTP referrer is
+   recommended.
+5. Add both credentials to `.env` (keep the non-`VITE_` names; `vite.config.js` exposes only these two
+   settings to the browser) and restart the dev server:
+
+```sh
+GOOGLE_CALENDAR_API_KEY=...
+GOOGLE_CALENDAR_CLIENT_ID=...
+```
+
+The Calendar page can also read a public calendar by ID without signing in, using the API key.
 
 ## Project Setup
 
