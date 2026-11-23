@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import { useRoute, RouterLink } from 'vue-router'
 import { useProjectStore } from '@/stores/project'
 import {
@@ -16,6 +16,11 @@ import {
   CheckCheck,
   Trash2,
   Sparkles,
+  Timer,
+  Play,
+  RotateCcw,
+  Check,
+  GripVertical,
 } from 'lucide-vue-next'
 
 const route = useRoute()
@@ -26,8 +31,19 @@ const project = computed(() => store.projects.find((p) => p.id === projectId))
 const projectTasks = computed(() => store.tasks.filter((t) => t.projectId === projectId))
 const progress = computed(() => store.getProjectProgress(projectId))
 
+const tasksByColumn = computed(() => {
+  const groups = { todo: [], 'in-progress': [], done: [] }
+  for (const task of projectTasks.value) {
+    if (groups[task.status]) groups[task.status].push(task)
+  }
+  return groups
+})
+
 const isTaskModalOpen = ref(false)
 const newTask = ref({ title: '', dueDate: '', priority: 'medium' })
+const draggingTaskId = ref(null)
+const dragOverColumn = ref(null)
+const progressDrafts = reactive({})
 
 async function handleAddTask() {
   if (!newTask.value.title.trim()) return
@@ -42,34 +58,101 @@ function openTaskModal() {
   isTaskModalOpen.value = true
 }
 
-function toggleStatus(task) {
-  const newStatus = task.status === 'done' ? 'todo' : 'done'
-  store.updateTaskStatus(task.id, newStatus)
+function displayProgress(task) {
+  return progressDrafts[task.id] ?? task.progress ?? 0
+}
+
+function sliderStyle(task) {
+  const value = displayProgress(task)
+  return { background: `linear-gradient(to right, #0ea5e9 ${value}%, #e0f2fe ${value}%)` }
+}
+
+function onProgressInput(task, event) {
+  progressDrafts[task.id] = Number(event.target.value)
+}
+
+async function commitProgress(task, event) {
+  const value = Number(event.target.value)
+  progressDrafts[task.id] = value
+  if (value >= 100) {
+    await store.updateTask(task.id, { status: 'done', progress: 100 })
+  } else {
+    await store.updateTask(task.id, { progress: value })
+  }
+}
+
+// Clear local drafts once Firestore confirms the new value.
+watch(projectTasks, (list) => {
+  for (const task of list) {
+    if (progressDrafts[task.id] !== undefined && (task.progress ?? 0) === progressDrafts[task.id]) {
+      delete progressDrafts[task.id]
+    }
+  }
+})
+
+async function moveTaskTo(task, status) {
+  if (task.status === status) return
+  const current = task.progress ?? 0
+
+  if (status === 'todo') {
+    await store.updateTask(task.id, { status: 'todo', progress: 0 })
+  } else if (status === 'done') {
+    await store.updateTask(task.id, { status: 'done', progress: 100 })
+  } else {
+    const nextProgress = current >= 100 ? 95 : current
+    await store.updateTask(task.id, { status: 'in-progress', progress: nextProgress })
+  }
+}
+
+function onDragStart(task, event) {
+  draggingTaskId.value = task.id
+  event.dataTransfer.effectAllowed = 'move'
+  event.dataTransfer.setData('text/plain', task.id)
+}
+
+function onDragOver(columnId, event) {
+  event.preventDefault()
+  event.dataTransfer.dropEffect = 'move'
+  dragOverColumn.value = columnId
+}
+
+function onDrop(columnId, event) {
+  event.preventDefault()
+  const taskId = event.dataTransfer.getData('text/plain') || draggingTaskId.value
+  const task = projectTasks.value.find((t) => t.id === taskId)
+  dragOverColumn.value = null
+  draggingTaskId.value = null
+  if (task) moveTaskTo(task, columnId)
+}
+
+function onDragEnd() {
+  dragOverColumn.value = null
+  draggingTaskId.value = null
 }
 
 const columns = [
   {
     id: 'todo',
     label: 'To Do',
+    hint: 'Drag a task to start working on it',
     icon: ListTodo,
     iconWrap: 'bg-slate-100 text-slate-500',
-    bar: 'bg-slate-300',
     count: 'bg-slate-100 text-slate-600',
   },
   {
     id: 'in-progress',
     label: 'In Progress',
+    hint: 'Drop a task here, then set its progress',
     icon: Loader2,
     iconWrap: 'bg-sky-50 text-sky-500',
-    bar: 'bg-sky-400',
     count: 'bg-sky-100 text-sky-600',
   },
   {
     id: 'done',
     label: 'Done',
+    hint: 'Tasks land here automatically at 100%',
     icon: CheckCheck,
     iconWrap: 'bg-emerald-50 text-emerald-500',
-    bar: 'bg-emerald-400',
     count: 'bg-emerald-100 text-emerald-600',
   },
 ]
@@ -169,13 +252,31 @@ function isOverdue(task) {
       </div>
     </div>
 
+    <!-- Flow hint -->
+    <div
+      class="animate-fade-up flex items-start gap-2.5 rounded-xl border border-brand/15 bg-brand-soft/70 px-4 py-2.5 text-xs leading-relaxed text-brand"
+      style="animation-delay: 60ms"
+    >
+      <GripVertical class="mt-0.5 h-4 w-4 flex-shrink-0" />
+      <span>
+        Drag tasks from <strong>To Do</strong> into <strong>In Progress</strong>, then adjust the
+        percentage. Reaching <strong>100%</strong> moves the task to <strong>Done</strong>
+        automatically.
+      </span>
+    </div>
+
     <!-- Kanban Board -->
     <div class="grid grid-cols-1 gap-5 lg:grid-cols-3">
       <div
         v-for="(col, idx) in columns"
         :key="col.id"
-        class="animate-fade-up flex flex-col overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm lg:h-[600px]"
+        class="animate-fade-up flex flex-col overflow-hidden rounded-2xl border bg-white shadow-sm transition-all duration-200 lg:h-[600px]"
+        :class="
+          dragOverColumn === col.id ? 'border-brand/50 ring-2 ring-brand/20' : 'border-gray-100'
+        "
         :style="{ animationDelay: `${100 + idx * 80}ms` }"
+        @dragover="onDragOver(col.id, $event)"
+        @drop="onDrop(col.id, $event)"
       >
         <div class="flex items-center justify-between border-b border-gray-100 p-4">
           <div class="flex items-center gap-2.5">
@@ -185,26 +286,34 @@ function isOverdue(task) {
             <h3 class="font-semibold text-gray-700">{{ col.label }}</h3>
           </div>
           <span class="rounded-full px-2.5 py-0.5 text-xs font-semibold" :class="col.count">
-            {{ projectTasks.filter((t) => t.status === col.id).length }}
+            {{ tasksByColumn[col.id].length }}
           </span>
         </div>
 
         <div class="flex-1 space-y-3 overflow-y-auto p-3">
           <TransitionGroup name="task" tag="div" class="relative space-y-3">
             <div
-              v-for="task in projectTasks.filter((t) => t.status === col.id)"
+              v-for="task in tasksByColumn[col.id]"
               :key="task.id"
-              class="group rounded-xl border border-gray-200 bg-white p-3.5 shadow-sm transition-all duration-200 hover:border-brand/30 hover:shadow-md"
+              class="group rounded-xl border border-gray-200 bg-white shadow-sm transition-all duration-200 hover:border-brand/30 hover:shadow-md"
+              :class="{
+                'opacity-40': draggingTaskId === task.id,
+                'bg-emerald-50/30': task.status === 'done',
+              }"
             >
-              <div class="flex items-start gap-2.5">
-                <button
-                  @click="toggleStatus(task)"
-                  class="mt-0.5 flex-shrink-0 transition-transform hover:scale-110"
-                  :title="task.status === 'done' ? 'Mark as to do' : 'Mark as done'"
-                >
+              <!-- Draggable area -->
+              <div
+                draggable="true"
+                class="flex cursor-grab items-start gap-2.5 p-3.5 pb-2 active:cursor-grabbing"
+                title="Drag to move"
+                @dragstart="onDragStart(task, $event)"
+                @dragend="onDragEnd"
+              >
+                <div class="mt-0.5 flex-shrink-0">
                   <CheckCircle2 v-if="task.status === 'done'" class="h-5 w-5 text-emerald-500" />
-                  <Circle v-else class="h-5 w-5 text-gray-300 hover:text-brand" />
-                </button>
+                  <Timer v-else-if="task.status === 'in-progress'" class="h-5 w-5 text-sky-500" />
+                  <Circle v-else class="h-5 w-5 text-gray-300" />
+                </div>
 
                 <div class="min-w-0 flex-1">
                   <p
@@ -237,33 +346,103 @@ function isOverdue(task) {
                   </div>
                 </div>
 
-                <button
-                  @click="store.deleteTask(task.id)"
-                  class="flex-shrink-0 rounded-md p-1 text-gray-300 opacity-0 transition hover:bg-red-50 hover:text-red-500 group-hover:opacity-100"
-                  title="Delete task"
-                >
-                  <Trash2 class="h-3.5 w-3.5" />
-                </button>
+              </div>
+
+              <!-- Progress control (In Progress only) -->
+              <div v-if="task.status === 'in-progress'" class="px-3.5 pb-2">
+                <div class="rounded-lg bg-sky-50/70 p-2.5">
+                  <div
+                    class="flex items-center justify-between text-[11px] font-semibold text-sky-700"
+                  >
+                    <span>Progress</span>
+                    <span class="tabular-nums">{{ displayProgress(task) }}%</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    step="5"
+                    :value="displayProgress(task)"
+                    class="progress-slider mt-2 w-full"
+                    aria-label="Task progress"
+                    :style="sliderStyle(task)"
+                    @input="onProgressInput(task, $event)"
+                    @change="commitProgress(task, $event)"
+                  />
+                  <p class="mt-1.5 text-[10px] font-medium text-sky-600/70">
+                    Reaches 100% → moves to Done
+                  </p>
+                </div>
+              </div>
+
+              <!-- Actions -->
+              <div
+                class="flex items-center justify-between gap-2 border-t border-gray-100 px-3.5 py-2"
+              >
+                <span class="text-[10px] font-semibold uppercase tracking-wide text-gray-400">
+                  {{ col.label }}
+                </span>
+                <div class="flex items-center gap-1.5">
+                  <button
+                    @click="store.deleteTask(task.id)"
+                    class="rounded-md p-1 text-gray-300 transition hover:bg-red-50 hover:text-red-500"
+                    title="Delete task"
+                  >
+                    <Trash2 class="h-3.5 w-3.5" />
+                  </button>
+                  <button
+                    v-if="task.status === 'todo'"
+                    @click="moveTaskTo(task, 'in-progress')"
+                    class="inline-flex items-center gap-1 rounded-md bg-sky-50 px-2 py-1 text-[11px] font-semibold text-sky-600 transition hover:bg-sky-100 active:scale-95"
+                    title="Start working on this task"
+                  >
+                    <Play class="h-3 w-3" /> Start
+                  </button>
+                  <button
+                    v-else-if="task.status === 'in-progress'"
+                    @click="moveTaskTo(task, 'done')"
+                    class="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-1 text-[11px] font-semibold text-emerald-600 transition hover:bg-emerald-100 active:scale-95"
+                    title="Mark as done"
+                  >
+                    <Check class="h-3 w-3" /> Complete
+                  </button>
+                  <button
+                    v-else
+                    @click="moveTaskTo(task, 'todo')"
+                    class="inline-flex items-center gap-1 rounded-md bg-gray-100 px-2 py-1 text-[11px] font-semibold text-gray-600 transition hover:bg-gray-200 active:scale-95"
+                    title="Move back to To Do"
+                  >
+                    <RotateCcw class="h-3 w-3" /> Reopen
+                  </button>
+                </div>
               </div>
             </div>
           </TransitionGroup>
 
           <div
-            v-if="projectTasks.filter((t) => t.status === col.id).length === 0"
-            class="flex flex-col items-center justify-center rounded-xl border border-dashed border-gray-200 py-10 text-center"
+            v-if="tasksByColumn[col.id].length === 0"
+            class="flex flex-col items-center justify-center rounded-xl border border-dashed border-gray-200 px-4 py-10 text-center"
           >
             <Sparkles class="h-6 w-6 text-gray-300" />
-            <p class="mt-2 text-xs font-medium text-gray-400">No tasks here yet</p>
+            <p class="mt-2 text-xs font-medium text-gray-400">{{ col.hint }}</p>
           </div>
         </div>
 
         <div class="border-t border-gray-100 p-3">
           <button
+            v-if="col.id === 'todo'"
             @click="openTaskModal"
             class="flex w-full items-center justify-center gap-1.5 rounded-lg py-2 text-sm font-medium text-gray-500 transition hover:bg-brand-soft hover:text-brand"
           >
             <Plus class="h-4 w-4" /> Add Task
           </button>
+          <p v-else class="py-1.5 text-center text-[11px] font-medium text-gray-400">
+            {{
+              col.id === 'in-progress'
+                ? 'Drag a card here · set progress to advance'
+                : 'Completed tasks appear here at 100%'
+            }}
+          </p>
         </div>
       </div>
     </div>

@@ -71,6 +71,8 @@ New accounts are always created as `member`. To bootstrap your first administrat
 - Users can create only their own profile, always as `member`, and can never change their own role.
 - Only admins can list all users or change another user's role (and never their own).
 - Task writes must reference a project the user owns, and all document fields are validated.
+- Task progress is enforced at the database level: `todo` = 0%, `in-progress` = 1–99%, `done` = 100%.
+  A task reaching 100% must be `done`, which guarantees the automatic-move behaviour.
 
 ## Project Setup
 

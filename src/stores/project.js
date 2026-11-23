@@ -108,8 +108,12 @@ export const useProjectStore = defineStore('project', () => {
   const getProjectProgress = (projectId) => {
     const projectTasks = tasks.value.filter((t) => t.projectId === projectId)
     if (projectTasks.length === 0) return 0
-    const completed = projectTasks.filter((t) => t.status === 'done').length
-    return Math.round((completed / projectTasks.length) * 100)
+    const total = projectTasks.reduce((sum, task) => {
+      if (task.status === 'done') return sum + 100
+      const value = Number(task.progress)
+      return sum + (Number.isFinite(value) ? Math.min(Math.max(value, 0), 99) : 0)
+    }, 0)
+    return Math.round(total / projectTasks.length)
   }
 
   const getProjectStats = (projectId) => {
@@ -177,6 +181,7 @@ export const useProjectStore = defineStore('project', () => {
         title: task.title.trim(),
         description: task.description?.trim() || '',
         status: 'todo',
+        progress: 0,
         priority: task.priority || 'medium',
         dueDate: task.dueDate || '',
         createdAt: new Date().toISOString(),
@@ -184,8 +189,8 @@ export const useProjectStore = defineStore('project', () => {
     )
   }
 
-  function updateTaskStatus(taskId, newStatus) {
-    return run((uid) => updateDoc(doc(db, 'users', uid, 'tasks', taskId), { status: newStatus }))
+  function updateTask(taskId, updates) {
+    return run((uid) => updateDoc(doc(db, 'users', uid, 'tasks', taskId), updates))
   }
 
   function deleteTask(taskId) {
@@ -209,7 +214,7 @@ export const useProjectStore = defineStore('project', () => {
     deleteProject,
     toggleArchive,
     addTask,
-    updateTaskStatus,
+    updateTask,
     deleteTask,
   }
 })

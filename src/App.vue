@@ -100,7 +100,9 @@ watch(
           </div>
           <div class="leading-tight">
             <h1 class="text-lg font-bold tracking-tight text-white">ABC Improve</h1>
-            <p class="text-[10px] font-medium uppercase tracking-widest text-slate-500">Workspace</p>
+            <p class="text-[10px] font-medium uppercase tracking-widest text-slate-500">
+              Workspace
+            </p>
           </div>
         </RouterLink>
         <button
@@ -113,7 +115,9 @@ watch(
 
       <!-- Navigation -->
       <nav class="flex-1 space-y-1.5 p-3">
-        <p class="px-3 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-widest text-slate-500">
+        <p
+          class="px-3 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-widest text-slate-500"
+        >
           Menu
         </p>
         <RouterLink

@@ -203,6 +203,42 @@ html.dark {
 }
 
 /* Shimmer for progress bars */
+/* Progress range slider (task progress in the kanban) */
+.progress-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 6px;
+  border-radius: 9999px;
+  outline: none;
+  cursor: pointer;
+}
+.progress-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 16px;
+  width: 16px;
+  border-radius: 9999px;
+  background: #fff;
+  border: 3px solid #0ea5e9;
+  box-shadow: 0 1px 3px rgb(15 23 42 / 0.2);
+  transition: transform 0.15s ease;
+}
+.progress-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.12);
+}
+.progress-slider::-moz-range-thumb {
+  height: 16px;
+  width: 16px;
+  border-radius: 9999px;
+  background: #fff;
+  border: 3px solid #0ea5e9;
+  box-shadow: 0 1px 3px rgb(15 23 42 / 0.2);
+  cursor: pointer;
+}
+.progress-slider:focus-visible {
+  box-shadow: 0 0 0 3px rgb(14 165 233 / 0.25);
+}
+
 .progress-shimmer {
   position: relative;
   overflow: hidden;

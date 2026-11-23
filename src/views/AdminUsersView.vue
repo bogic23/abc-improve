@@ -263,9 +263,7 @@ watch(
             <span
               class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold"
               :class="
-                user.role === 'admin'
-                  ? 'bg-cyan-100 text-cyan-700'
-                  : 'bg-gray-100 text-gray-600'
+                user.role === 'admin' ? 'bg-cyan-100 text-cyan-700' : 'bg-gray-100 text-gray-600'
               "
             >
               <ShieldCheck v-if="user.role === 'admin'" class="h-3 w-3" />

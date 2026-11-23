@@ -42,7 +42,16 @@ service cloud.firestore {
         && request.resource.data.status in ['todo', 'in-progress', 'done']
         && request.resource.data.priority in ['low', 'medium', 'high']
         && request.resource.data.dueDate is string
-        && request.resource.data.dueDate.size() <= 10;
+        && request.resource.data.dueDate.size() <= 10
+        && request.resource.data.progress is int
+        && request.resource.data.progress >= 0
+        && request.resource.data.progress <= 100
+        // Business rule: To Do = 0%, In Progress = 1-99%, Done = 100%.
+        && (
+          (request.resource.data.status == 'todo' && request.resource.data.progress == 0)
+          || (request.resource.data.status == 'in-progress' && request.resource.data.progress < 100)
+          || (request.resource.data.status == 'done' && request.resource.data.progress == 100)
+        );
     }
 
     // -----------------------------------------------------------------
@@ -135,6 +144,7 @@ service cloud.firestore {
           'title',
           'description',
           'status',
+          'progress',
           'priority',
           'dueDate',
           'createdAt'
@@ -151,6 +161,7 @@ service cloud.firestore {
           'title',
           'description',
           'status',
+          'progress',
           'priority',
           'dueDate'
         ])
