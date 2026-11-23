@@ -21,7 +21,7 @@ See [Vite Configuration Reference](https://vite.dev/config/).
 
 ## Firebase Authentication setup
 
-PulsePM uses Firebase Auth for email/password and Google sign-in.
+ABC Improve uses Firebase Auth for email/password and Google sign-in.
 
 1. Create a project in the [Firebase Console](https://console.firebase.google.com).
 2. In **Authentication → Sign-in method**, enable **Email/Password** and **Google**.

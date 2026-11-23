@@ -14,14 +14,18 @@ import {
   Menu,
   ShieldCheck,
   Sparkles,
+  Sun,
+  Moon,
   X,
 } from 'lucide-vue-next'
+import { useTheme } from '@/composables/useTheme'
 
 const auth = useAuthStore()
 const projects = useProjectStore()
 const router = useRouter()
 const route = useRoute()
 const isSidebarOpen = ref(false)
+const { isDark, toggleTheme } = useTheme()
 
 const navItems = [
   { name: 'Dashboard', path: '/', icon: LayoutDashboard },
@@ -39,7 +43,7 @@ const currentTitle = computed(() => {
   if (route.name === 'project-detail') return 'Project Board'
   if (route.name === 'admin-users') return 'User Management'
   const active = navItems.find((item) => isActive(item))
-  return active ? active.name : 'PulsePM'
+  return active ? active.name : 'ABC Improve'
 })
 
 async function handleLogout() {
@@ -83,7 +87,7 @@ watch(
 
     <!-- Sidebar -->
     <aside
-      class="fixed inset-y-0 left-0 z-30 flex w-64 transform flex-col border-r border-slate-800 bg-slate-950 transition-transform duration-300 ease-in-out lg:static lg:translate-x-0"
+      class="app-sidebar fixed inset-y-0 left-0 z-30 flex w-64 transform flex-col border-r border-slate-800 bg-slate-950 transition-transform duration-300 ease-in-out lg:static lg:translate-x-0"
       :class="isSidebarOpen ? 'translate-x-0' : '-translate-x-full'"
     >
       <!-- Logo -->
@@ -95,7 +99,7 @@ watch(
             <Activity class="h-5 w-5" />
           </div>
           <div class="leading-tight">
-            <h1 class="text-lg font-bold tracking-tight text-white">PulsePM</h1>
+            <h1 class="text-lg font-bold tracking-tight text-white">ABC Improve</h1>
             <p class="text-[10px] font-medium uppercase tracking-widest text-slate-500">Workspace</p>
           </div>
         </RouterLink>
@@ -220,18 +224,27 @@ watch(
           >
             <Activity class="h-4 w-4" />
           </div>
-          <span class="font-semibold tracking-tight">PulsePM</span>
+          <span class="font-semibold tracking-tight">ABC Improve</span>
         </div>
+        <button
+          @click="toggleTheme"
+          class="ml-auto rounded-lg p-2 text-gray-600 transition-colors hover:bg-gray-100"
+          :aria-label="isDark ? 'Switch to light mode' : 'Switch to dark mode'"
+          :title="isDark ? 'Switch to light mode' : 'Switch to dark mode'"
+        >
+          <Sun v-if="isDark" class="h-5 w-5" />
+          <Moon v-else class="h-5 w-5" />
+        </button>
         <img
           v-if="auth.photoURL"
           :src="auth.photoURL"
           alt=""
           referrerpolicy="no-referrer"
-          class="ml-auto h-8 w-8 rounded-full object-cover ring-2 ring-white"
+          class="h-8 w-8 rounded-full object-cover ring-2 ring-white"
         />
         <div
           v-else
-          class="ml-auto flex h-8 w-8 items-center justify-center rounded-full bg-linear-to-br from-cyan-400 to-blue-600 text-[11px] font-bold text-slate-950"
+          class="flex h-8 w-8 items-center justify-center rounded-full bg-linear-to-br from-cyan-400 to-blue-600 text-[11px] font-bold text-slate-950"
         >
           {{ auth.initials }}
         </div>
@@ -247,6 +260,15 @@ watch(
           <span class="font-semibold text-gray-800">{{ currentTitle }}</span>
         </div>
         <div class="flex items-center gap-3">
+          <button
+            @click="toggleTheme"
+            class="rounded-lg p-2 text-gray-500 transition-colors hover:bg-gray-100 hover:text-brand"
+            :aria-label="isDark ? 'Switch to light mode' : 'Switch to dark mode'"
+            :title="isDark ? 'Switch to light mode' : 'Switch to dark mode'"
+          >
+            <Sun v-if="isDark" class="h-5 w-5" />
+            <Moon v-else class="h-5 w-5" />
+          </button>
           <div
             class="flex items-center gap-1.5 rounded-full border border-brand/15 bg-brand-soft px-3 py-1.5 text-xs font-medium text-brand"
           >

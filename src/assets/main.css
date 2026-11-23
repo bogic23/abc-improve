@@ -6,6 +6,11 @@
   --color-brand-soft: #ecfeff;
 }
 
+html.dark {
+  color-scheme: dark;
+  --color-brand-soft: #083344;
+}
+
 /* Base styles */
 @layer base {
   html {
@@ -14,6 +19,11 @@
 
   body {
     @apply bg-gray-50 text-gray-900 antialiased;
+  }
+
+  html.dark body {
+    background-color: #020617;
+    color: #e2e8f0;
   }
 
   ::selection {
@@ -217,6 +227,160 @@
   background: rgb(255 255 255 / 0.72);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
+}
+
+html.dark .glass {
+  background: rgb(15 23 42 / 0.82);
+}
+
+html.dark .bg-white {
+  background-color: #0f172a;
+}
+
+html.dark .bg-gray-50,
+html.dark [class~='bg-gray-50/60'] {
+  background-color: #0b1220;
+}
+
+html.dark .bg-gray-100 {
+  background-color: #1e293b;
+}
+
+html.dark .bg-gray-200 {
+  background-color: #334155;
+}
+
+html.dark .border-gray-100,
+html.dark .border-gray-200,
+html.dark [class~='border-gray-200/70'] {
+  border-color: #334155;
+}
+
+html.dark .text-gray-900,
+html.dark .text-gray-800,
+html.dark .text-gray-700 {
+  color: #e2e8f0;
+}
+
+html.dark .text-gray-600,
+html.dark .text-gray-500 {
+  color: #94a3b8;
+}
+
+html.dark .text-gray-400 {
+  color: #64748b;
+}
+
+html.dark .bg-red-50,
+html.dark .bg-red-100 {
+  background-color: #450a0a;
+}
+
+html.dark .bg-amber-50,
+html.dark .bg-amber-100 {
+  background-color: #451a03;
+}
+
+html.dark .bg-emerald-50,
+html.dark .bg-emerald-100 {
+  background-color: #022c22;
+}
+
+html.dark .bg-cyan-50,
+html.dark .bg-cyan-100 {
+  background-color: #083344;
+}
+
+html.dark .bg-blue-50,
+html.dark .bg-sky-50 {
+  background-color: #0c2340;
+}
+
+html.dark .text-red-600,
+html.dark .text-red-700 {
+  color: #fca5a5;
+}
+
+html.dark .text-amber-700 {
+  color: #fcd34d;
+}
+
+html.dark .text-emerald-600,
+html.dark .text-emerald-700 {
+  color: #6ee7b7;
+}
+
+html.dark .text-cyan-700 {
+  color: #67e8f9;
+}
+
+html.dark .text-blue-600,
+html.dark .text-sky-600 {
+  color: #7dd3fc;
+}
+
+html.dark .border-red-200 {
+  border-color: #7f1d1d;
+}
+
+html.dark .border-amber-100,
+html.dark .border-amber-200 {
+  border-color: #78350f;
+}
+
+html.dark .border-cyan-100 {
+  border-color: #155e75;
+}
+
+html.dark [class~='hover:bg-gray-50']:hover {
+  background-color: #1e293b;
+}
+
+html.dark [class~='hover:bg-gray-100']:hover {
+  background-color: #334155;
+}
+
+html.dark [class~='hover:text-gray-900']:hover,
+html.dark [class~='hover:text-gray-700']:hover {
+  color: #f8fafc;
+}
+
+html.dark .app-sidebar {
+  background-color: #020617;
+  border-color: #1e293b;
+}
+
+html.dark .app-sidebar .border-gray-100 {
+  border-color: #1e293b;
+}
+
+html:not(.dark) .app-sidebar {
+  background-color: #fff;
+  border-color: #e5e7eb;
+}
+
+html:not(.dark) .app-sidebar .border-slate-800 {
+  border-color: #e5e7eb;
+}
+
+html:not(.dark) .app-sidebar .text-white {
+  color: #111827;
+}
+
+html:not(.dark) .app-sidebar .text-slate-400 {
+  color: #4b5563;
+}
+
+html:not(.dark) .app-sidebar .text-slate-500 {
+  color: #9ca3af;
+}
+
+html:not(.dark) [class~='hover:bg-slate-900']:hover {
+  background-color: #f3f4f6;
+}
+
+html:not(.dark) [class~='hover:text-white']:hover {
+  color: #111827;
 }
 
 /* Faint grid used on the auth brand panel */

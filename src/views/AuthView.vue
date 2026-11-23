@@ -16,14 +16,18 @@ import {
   Loader2,
   Lock,
   Mail,
+  Moon,
   Sparkles,
+  Sun,
   User,
   Zap,
 } from 'lucide-vue-next'
+import { useTheme } from '@/composables/useTheme'
 
 const auth = useAuthStore()
 const route = useRoute()
 const router = useRouter()
+const { isDark, toggleTheme } = useTheme()
 
 const mode = ref('login')
 const isLogin = computed(() => mode.value === 'login')
@@ -134,6 +138,15 @@ async function handleGoogle() {
 
 <template>
   <div class="flex min-h-screen bg-gray-50">
+    <button
+      @click="toggleTheme"
+      class="absolute right-5 top-5 z-10 rounded-xl border border-gray-200 bg-white p-2.5 text-gray-600 shadow-sm transition-colors hover:bg-gray-100"
+      :aria-label="isDark ? 'Switch to light mode' : 'Switch to dark mode'"
+      :title="isDark ? 'Switch to light mode' : 'Switch to dark mode'"
+    >
+      <Sun v-if="isDark" class="h-5 w-5" />
+      <Moon v-else class="h-5 w-5" />
+    </button>
     <!-- Brand panel -->
     <div
       class="relative hidden w-1/2 flex-col justify-between overflow-hidden bg-linear-to-br from-slate-950 via-blue-950 to-cyan-700 p-10 text-white lg:flex xl:p-14"
@@ -155,7 +168,7 @@ async function handleGoogle() {
           <Activity class="h-5 w-5" />
         </div>
         <div class="leading-tight">
-          <p class="text-lg font-bold tracking-tight">PulsePM</p>
+          <p class="text-lg font-bold tracking-tight">ABC Improve</p>
           <p class="text-[10px] font-medium uppercase tracking-[0.2em] text-white/60">
             Project workspace
           </p>
@@ -237,7 +250,7 @@ async function handleGoogle() {
           >
             <Activity class="h-5 w-5" />
           </div>
-          <span class="text-lg font-bold tracking-tight text-gray-900">PulsePM</span>
+          <span class="text-lg font-bold tracking-tight text-gray-900">ABC Improve</span>
         </div>
 
         <div class="animate-fade-up">
