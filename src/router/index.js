@@ -1,11 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
-import DashboardView from '@/views/DashboardView.vue'
-import ProjectsView from '@/views/ProjectsView.vue'
-import ProjectDetailView from '@/views/ProjectDetailView.vue'
-import CalendarView from '@/views/CalendarView.vue'
-import AuthView from '@/views/AuthView.vue'
-import AdminUsersView from '@/views/AdminUsersView.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -13,22 +7,37 @@ const router = createRouter({
     {
       path: '/login',
       name: 'login',
-      component: AuthView,
+      component: () => import('@/views/AuthView.vue'),
       meta: { layout: 'auth', public: true },
     },
-    { path: '/', name: 'dashboard', component: DashboardView, meta: { requiresAuth: true } },
-    { path: '/projects', name: 'projects', component: ProjectsView, meta: { requiresAuth: true } },
+    {
+      path: '/',
+      name: 'dashboard',
+      component: () => import('@/views/DashboardView.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/projects',
+      name: 'projects',
+      component: () => import('@/views/ProjectsView.vue'),
+      meta: { requiresAuth: true },
+    },
     {
       path: '/projects/:id',
       name: 'project-detail',
-      component: ProjectDetailView,
+      component: () => import('@/views/ProjectDetailView.vue'),
       meta: { requiresAuth: true },
     },
-    { path: '/calendar', name: 'calendar', component: CalendarView, meta: { requiresAuth: true } },
+    {
+      path: '/calendar',
+      name: 'calendar',
+      component: () => import('@/views/CalendarView.vue'),
+      meta: { requiresAuth: true },
+    },
     {
       path: '/admin/users',
       name: 'admin-users',
-      component: AdminUsersView,
+      component: () => import('@/views/AdminUsersView.vue'),
       meta: { requiresAuth: true, requiresAdmin: true },
     },
   ],
