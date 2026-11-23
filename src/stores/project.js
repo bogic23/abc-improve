@@ -175,8 +175,9 @@ export const useProjectStore = defineStore('project', () => {
 
   // --- Task Actions ---
   function addTask(task) {
-    return run((uid) =>
-      addDoc(collection(db, 'users', uid, 'tasks'), {
+    let taskId = null
+    return run(async (uid) => {
+      const taskRef = await addDoc(collection(db, 'users', uid, 'tasks'), {
         projectId: task.projectId,
         title: task.title.trim(),
         description: task.description?.trim() || '',
@@ -184,9 +185,16 @@ export const useProjectStore = defineStore('project', () => {
         progress: 0,
         priority: task.priority || 'medium',
         dueDate: task.dueDate || '',
+        ...(task.googleCalendarEventId
+          ? {
+              googleCalendarEventId: task.googleCalendarEventId,
+              googleCalendarId: task.googleCalendarId,
+            }
+          : {}),
         createdAt: new Date().toISOString(),
-      }),
-    )
+      })
+      taskId = taskRef.id
+    }).then((ok) => ok ? taskId : false)
   }
 
   function updateTask(taskId, updates) {

@@ -3,6 +3,13 @@ import { computed, reactive, ref, watch } from 'vue'
 import { useRoute, RouterLink } from 'vue-router'
 import { useProjectStore } from '@/stores/project'
 import {
+  connectGoogleCalendar,
+  createTaskCalendarEvent,
+  deleteTaskCalendarEvent,
+  hasValidGoogleCalendarConnection,
+  selectedGoogleCalendarId,
+} from '@/services/googleCalendar'
+import {
   Plus,
   CheckCircle2,
   Circle,
@@ -44,13 +51,64 @@ const newTask = ref({ title: '', dueDate: '', priority: 'medium' })
 const draggingTaskId = ref(null)
 const dragOverColumn = ref(null)
 const progressDrafts = reactive({})
+const taskSyncNotice = ref('')
+const isAddingTask = ref(false)
 
 async function handleAddTask() {
-  if (!newTask.value.title.trim()) return
-  const ok = await store.addTask({ ...newTask.value, projectId })
-  if (!ok) return
-  isTaskModalOpen.value = false
-  newTask.value = { title: '', dueDate: '', priority: 'medium' }
+  if (!newTask.value.title.trim() || isAddingTask.value) return
+  taskSyncNotice.value = ''
+  const task = { ...newTask.value, projectId }
+  isAddingTask.value = true
+  try {
+    if (task.dueDate) {
+      if (!hasValidGoogleCalendarConnection()) await connectGoogleCalendar()
+    }
+
+    const taskId = await store.addTask(task)
+    if (!taskId) {
+      taskSyncNotice.value = store.error
+        ? `Task was not saved: ${store.error}`
+        : 'Task was not saved. Check your connection and try again.'
+      return
+    }
+
+    if (task.dueDate) {
+      try {
+        const event = await createTaskCalendarEvent({ ...task, id: taskId })
+        const linked = await store.updateTask(taskId, {
+          googleCalendarEventId: event.id,
+          googleCalendarId: selectedGoogleCalendarId(),
+        })
+        if (!linked) {
+          taskSyncNotice.value = 'Task and Google Calendar event were created, but their link could not be saved. Use Sync tasks in the Calendar section to repair it.'
+        }
+      } catch (error) {
+        taskSyncNotice.value = `Task saved, but Google Calendar sync failed: ${error.message}. Use Sync tasks in the Calendar section to retry.`
+      }
+    }
+
+    isTaskModalOpen.value = false
+    newTask.value = { title: '', dueDate: '', priority: 'medium' }
+  } catch (error) {
+    taskSyncNotice.value = `Task was not saved: ${error.message}`
+  } finally {
+    isAddingTask.value = false
+  }
+}
+
+async function handleDeleteTask(task) {
+  taskSyncNotice.value = ''
+  if (task.googleCalendarEventId) {
+    try {
+      if (!hasValidGoogleCalendarConnection()) await connectGoogleCalendar()
+      await deleteTaskCalendarEvent(task)
+    } catch (error) {
+      taskSyncNotice.value = `Task kept. Could not remove its Google Calendar event: ${error.message}`
+      return
+    }
+  }
+  const deleted = await store.deleteTask(task.id)
+  if (!deleted) taskSyncNotice.value = `Google Calendar event removed, but Firestore could not delete the task: ${store.error}`
 }
 
 function openTaskModal() {
@@ -252,6 +310,10 @@ function isOverdue(task) {
       </div>
     </div>
 
+    <div v-if="taskSyncNotice" class="rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-800">
+      <span>{{ taskSyncNotice }}</span>
+    </div>
+
     <!-- Flow hint -->
     <div
       class="animate-fade-up flex items-start gap-2.5 rounded-xl border border-brand/15 bg-brand-soft/70 px-4 py-2.5 text-xs leading-relaxed text-brand"
@@ -384,7 +446,7 @@ function isOverdue(task) {
                 </span>
                 <div class="flex items-center gap-1.5">
                   <button
-                    @click="store.deleteTask(task.id)"
+                    @click="handleDeleteTask(task)"
                     class="rounded-md p-1 text-gray-300 transition hover:bg-red-50 hover:text-red-500"
                     title="Delete task"
                   >
@@ -529,9 +591,11 @@ function isOverdue(task) {
             <button
               @click="handleAddTask"
               class="inline-flex items-center gap-2 rounded-xl bg-brand px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-hover active:scale-95 disabled:opacity-50"
-              :disabled="!newTask.title.trim()"
+              :disabled="!newTask.title.trim() || isAddingTask"
             >
-              <Plus class="h-4 w-4" /> Add Task
+              <Loader2 v-if="isAddingTask" class="h-4 w-4 animate-spin" />
+              <Plus v-else class="h-4 w-4" />
+              {{ isAddingTask ? 'Syncing…' : 'Add Task' }}
             </button>
           </div>
         </div>

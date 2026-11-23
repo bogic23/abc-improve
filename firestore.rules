@@ -46,6 +46,12 @@ service cloud.firestore {
         && request.resource.data.progress is int
         && request.resource.data.progress >= 0
         && request.resource.data.progress <= 100
+        && (!('googleCalendarEventId' in request.resource.data)
+          || (request.resource.data.googleCalendarEventId is string
+            && request.resource.data.googleCalendarEventId.size() <= 1024))
+        && (!('googleCalendarId' in request.resource.data)
+          || (request.resource.data.googleCalendarId is string
+            && request.resource.data.googleCalendarId.size() <= 256))
         // Business rule: To Do = 0%, In Progress = 1-99%, Done = 100%.
         && (
           (request.resource.data.status == 'todo' && request.resource.data.progress == 0)
@@ -147,7 +153,9 @@ service cloud.firestore {
           'progress',
           'priority',
           'dueDate',
-          'createdAt'
+          'createdAt',
+          'googleCalendarEventId',
+          'googleCalendarId'
         ])
         && request.resource.data.createdAt is string
         && validTaskData()
@@ -163,7 +171,9 @@ service cloud.firestore {
           'status',
           'progress',
           'priority',
-          'dueDate'
+          'dueDate',
+          'googleCalendarEventId',
+          'googleCalendarId'
         ])
         && validTaskData();
 

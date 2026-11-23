@@ -1,9 +1,18 @@
 import { fileURLToPath, URL } from 'node:url'
-import { defineConfig } from 'vite'
+import { defineConfig, loadEnv } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import tailwindcss from '@tailwindcss/vite'
 
-export default defineConfig({
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd(), '')
+
+  return {
+  // Google Calendar API keys are public client credentials. Only expose this
+  // single setting to the browser; keep the rest of .env private.
+  define: {
+    'import.meta.env.VITE_GOOGLE_CALENDAR_API_KEY': JSON.stringify(env.GOOGLE_CALENDAR_API_KEY || ''),
+    'import.meta.env.VITE_GOOGLE_CALENDAR_CLIENT_ID': JSON.stringify(env.GOOGLE_CALENDAR_CLIENT_ID || ''),
+  },
   plugins: [
     vue(),
     tailwindcss(),
@@ -29,5 +38,6 @@ export default defineConfig({
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url))
     }
+  }
   }
 })

@@ -13,7 +13,15 @@ import {
   AlertCircle,
   X,
   Palette,
+  Pencil,
+  Trash2,
+  Loader2,
 } from 'lucide-vue-next'
+import {
+  connectGoogleCalendar,
+  deleteTaskCalendarEvent,
+  hasValidGoogleCalendarConnection,
+} from '@/services/googleCalendar'
 
 const store = useProjectStore()
 const search = ref('')
@@ -26,19 +34,69 @@ const filteredProjects = computed(() => {
 
 const isModalOpen = ref(false)
 const newProject = ref({ name: '', description: '', color: '#06b6d4' })
+const editingProjectId = ref(null)
+const isSavingProject = ref(false)
+const projectActionError = ref('')
 const swatches = ['#06b6d4', '#2563eb', '#020617', '#0ea5e9', '#22d3ee', '#10b981', '#8b5cf6']
 
 function openModal() {
+  editingProjectId.value = null
+  projectActionError.value = ''
   newProject.value = { name: '', description: '', color: '#06b6d4' }
   isModalOpen.value = true
 }
 
-async function handleCreate() {
+function openEditModal(project) {
+  editingProjectId.value = project.id
+  projectActionError.value = ''
+  newProject.value = {
+    name: project.name,
+    description: project.description || '',
+    color: project.color || '#06b6d4',
+  }
+  isModalOpen.value = true
+}
+
+async function handleSaveProject() {
   if (!newProject.value.name.trim()) return
-  const ok = await store.addProject(newProject.value)
-  if (!ok) return
-  isModalOpen.value = false
-  newProject.value = { name: '', description: '', color: '#06b6d4' }
+  isSavingProject.value = true
+  projectActionError.value = ''
+  try {
+    const ok = editingProjectId.value
+      ? await store.updateProject(editingProjectId.value, {
+          name: newProject.value.name.trim(),
+          description: newProject.value.description.trim(),
+          color: newProject.value.color,
+        })
+      : await store.addProject(newProject.value)
+    if (!ok) {
+      projectActionError.value = store.error || 'Could not save the project.'
+      return
+    }
+    isModalOpen.value = false
+    editingProjectId.value = null
+    newProject.value = { name: '', description: '', color: '#06b6d4' }
+  } finally {
+    isSavingProject.value = false
+  }
+}
+
+async function handleDeleteProject(project) {
+  projectActionError.value = ''
+  const tasks = store.tasks.filter((task) => task.projectId === project.id)
+  if (!window.confirm(`Delete “${project.name}” and its ${tasks.length} task${tasks.length === 1 ? '' : 's'}? This cannot be undone.`)) return
+
+  try {
+    const linkedTasks = tasks.filter((task) => task.googleCalendarEventId)
+    if (linkedTasks.length) {
+      if (!hasValidGoogleCalendarConnection()) await connectGoogleCalendar()
+      for (const task of linkedTasks) await deleteTaskCalendarEvent(task)
+    }
+    const ok = await store.deleteProject(project.id)
+    if (!ok) projectActionError.value = store.error || 'Could not delete the project.'
+  } catch (error) {
+    projectActionError.value = `Project kept. Could not remove its linked Google Calendar events: ${error.message}`
+  }
 }
 </script>
 
@@ -97,6 +155,10 @@ async function handleCreate() {
       </button>
     </div>
 
+    <p v-if="projectActionError" class="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">
+      {{ projectActionError }}
+    </p>
+
     <!-- Empty state -->
     <div
       v-if="filteredProjects.length === 0"
@@ -120,10 +182,9 @@ async function handleCreate() {
 
     <!-- Project Grid -->
     <div v-else class="stagger grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
-      <RouterLink
+      <div
         v-for="project in filteredProjects"
         :key="project.id"
-        :to="`/projects/${project.id}`"
         class="card-hover group flex flex-col overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm"
       >
         <div
@@ -151,12 +212,32 @@ async function handleCreate() {
                 </p>
               </div>
             </div>
-            <span
-              v-if="project.archived"
-              class="flex-shrink-0 rounded-full bg-gray-100 px-2.5 py-1 text-[11px] font-semibold text-gray-500"
-            >
-              Archived
-            </span>
+            <div class="flex flex-shrink-0 items-center gap-1">
+              <span
+                v-if="project.archived"
+                class="rounded-full bg-gray-100 px-2.5 py-1 text-[11px] font-semibold text-gray-500"
+              >
+                Archived
+              </span>
+              <button
+                type="button"
+                :aria-label="`Edit ${project.name}`"
+                title="Edit project"
+                @click="openEditModal(project)"
+                class="rounded-lg p-2 text-gray-400 transition hover:bg-blue-50 hover:text-blue-600"
+              >
+                <Pencil class="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                :aria-label="`Delete ${project.name}`"
+                title="Delete project"
+                @click="handleDeleteProject(project)"
+                class="rounded-lg p-2 text-gray-400 transition hover:bg-red-50 hover:text-red-600"
+              >
+                <Trash2 class="h-4 w-4" />
+              </button>
+            </div>
           </div>
 
           <p class="mt-3 line-clamp-2 flex-1 text-sm leading-relaxed text-gray-500">
@@ -197,16 +278,17 @@ async function handleCreate() {
             </div>
           </div>
 
-          <div
+          <RouterLink
+            :to="`/projects/${project.id}`"
             class="mt-4 flex items-center justify-between border-t border-gray-100 pt-3 text-xs font-semibold text-gray-500 transition-colors group-hover:text-brand"
           >
             Open board
             <ArrowUpRight
               class="h-4 w-4 transition-transform duration-300 group-hover:-translate-y-0.5 group-hover:translate-x-0.5"
             />
-          </div>
+          </RouterLink>
         </div>
-      </RouterLink>
+      </div>
     </div>
 
     <!-- Create Modal -->
@@ -219,9 +301,11 @@ async function handleCreate() {
         <div class="modal-panel w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
           <div class="flex items-start justify-between">
             <div>
-              <h3 class="text-lg font-bold text-gray-900">Create New Project</h3>
+              <h3 class="text-lg font-bold text-gray-900">
+                {{ editingProjectId ? 'Edit Project' : 'Create New Project' }}
+              </h3>
               <p class="mt-0.5 text-sm text-gray-500">
-                Give your project a name and a splash of color.
+                {{ editingProjectId ? 'Update the project name, description, or color.' : 'Give your project a name and a splash of color.' }}
               </p>
             </div>
             <button
@@ -297,11 +381,13 @@ async function handleCreate() {
               Cancel
             </button>
             <button
-              @click="handleCreate"
+              @click="handleSaveProject"
               class="inline-flex items-center gap-2 rounded-xl bg-brand px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-hover active:scale-95 disabled:opacity-50"
-              :disabled="!newProject.name.trim()"
+              :disabled="!newProject.name.trim() || isSavingProject"
             >
-              <Plus class="h-4 w-4" /> Create Project
+              <Loader2 v-if="isSavingProject" class="h-4 w-4 animate-spin" />
+              <Plus v-else class="h-4 w-4" />
+              {{ isSavingProject ? 'Saving…' : editingProjectId ? 'Save Changes' : 'Create Project' }}
             </button>
           </div>
         </div>
